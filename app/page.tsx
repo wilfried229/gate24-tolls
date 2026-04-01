@@ -16,6 +16,7 @@ import {
   Settings
 } from 'lucide-react'
 import { supabase, Card, Transaction, ActivityLog } from '../lib/supabase'
+import { io, Socket } from 'socket.io-client'
 
 type KioskState = 'idle' | 'scanning' | 'processing' | 'success' | 'error' | 'cooldown'
 
@@ -37,10 +38,12 @@ export default function ParkSmartKiosk() {
   const [state, setState] = useState<KioskState>('idle')
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [isOnline, setIsOnline] = useState(true)
+  const [isPinging, setIsPinging] = useState(false)
   const [todayPassages, setTodayPassages] = useState(0)
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const socketRef = useRef<Socket | null>(null)
   
   // Configuration state
   const [config, setConfig] = useState<ConfigData>({
@@ -65,6 +68,25 @@ export default function ParkSmartKiosk() {
     }
   }, [])
 
+    useEffect(() => {
+    const tollName = config.siteName;
+    const dataSend = { color: 7, front: 'small', light: 0, row1: "BIENVENU", row2: "PEAGE", row3: tollName, row4: 'SAFER', bright: 71 };
+    ////sendMessagePanneau(dataSend);
+
+  }, []);
+
+
+   const sendMessagePanneau = async (data: any) => {
+    const LED_IP = config.panelAddress;
+    const LED_PORT = config.panelPort;
+    data.url = { panelAddress: LED_IP, panelPort: LED_PORT };
+    await fetch("/api/led", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  };
+
   // Mettre à jour l'horloge toutes les secondes
   useEffect(() => {
     const timer = setInterval(() => {
@@ -73,19 +95,181 @@ export default function ParkSmartKiosk() {
     return () => clearInterval(timer)
   }, [])
 
-  // Détecter la connectivité
+  // Vérifier la connectivité avec le serveur (ping simple IP)
+  const checkServerConnectivity = useCallback(async (): Promise<boolean> => {
+    if (!config.serverAddress || !config.serverPort) {
+      console.log('Config serveur non définie, ping ignoré')
+      return false
+    }
+    
+    try {
+      const response = await fetch(`http://${config.serverAddress}:${config.serverPort}`, {
+        method: 'HEAD',
+        mode: 'no-cors',
+        cache: 'no-cache'
+      })
+      return true
+    } catch (error) {
+      console.error('Server ping failed:', error)
+      return false
+    }
+  }, [config])
+
+  // Détecter la connectivité et faire des pings continus
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true)
+    const handleOnline = async () => {
+      const isServerOnline = await checkServerConnectivity()
+      setIsOnline(isServerOnline)
+    }
+    
     const handleOffline = () => setIsOnline(false)
 
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
 
+    // Vérification initiale
+    handleOnline()
+
+    // Ping continu toutes les 5 secondes
+    const interval = setInterval(async () => {
+      setIsPinging(true)
+      const isServerOnline = await checkServerConnectivity()
+      setIsOnline(isServerOnline)
+      setIsPinging(false)
+    }, 5000)
+
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      clearInterval(interval)
     }
-  }, [])
+  }, [checkServerConnectivity, config])
+
+  // Appel API Homintec
+  const callHomintecAPI = useCallback(async (cardNumber: string,typeTag: string): Promise<{success: boolean, data?: any, message: string}> => {
+    try {
+      const response = await fetch(`http://${config.serverAddress}:${config.serverPort}/api/v2/homintec/passage/abonners`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          site: config.siteName,
+          voie: config.lane,
+          montant_passage: 500,
+          targId: cardNumber,
+          percepteur: "Gate24_KIOSK"
+          //typeTag: typeTag
+        })
+      })
+
+      let data
+      const contentType = response.headers.get('content-type')
+      
+      if (contentType && contentType.includes('application/json')) {
+        // Parse as JSON if content type is JSON
+        data = await response.json()
+
+        console.log("datdat",data)
+      } else {
+        // Parse as text for non-JSON responses
+        const textResponse = await response.text()
+        console.log('Non-JSON response:', textResponse)
+        
+        // Handle specific text responses
+        if (textResponse.includes('PASSAGE REFUSE')) {
+          return { 
+            success: false, 
+            message: 'Passage refusé'
+          }
+        }
+
+
+           if (textResponse.includes('TAG INVALID')) {
+          return { 
+            success: false, 
+            message: 'Tag invalide'
+          }
+        }
+
+        
+         if (textResponse.includes('TAG DELECTED')) {
+          return { 
+            success: false, 
+            message: 'Abonnement supprimé'
+          }
+        }
+
+
+         if (textResponse.includes('TAG DESACTIVER')) {
+          return { 
+            success: false, 
+            message: 'Abonnement desactivé'
+          }
+        }
+        
+
+         if (textResponse.includes('SOLDE INSUFFISANT')) {
+          return { 
+            success: false, 
+            message: 'Solde insuffisant'
+          }
+        }
+        
+        
+
+        return { 
+          success: false, 
+          message: textResponse || 'Réponse invalide du serveur'
+        }
+      }
+      
+      if (response.status === 200 || response.status === 201) {
+        // Succès - carte valide
+        console.log('API response:', data)
+        return { 
+          success: true, 
+          data: data,
+          message: 'Carte valide'
+        }
+      } else {
+        // Gérer les différents cas d'erreur
+        let errorMessage = 'Erreur inconnue'
+        
+        switch (response.status) {
+          case 400:
+            errorMessage = 'Tag invalide'
+            break
+          case 401:
+            errorMessage = 'Tag désactivé'
+            break
+          case 402:
+            errorMessage = 'Tag supprimé'
+            break
+          case 300:
+            errorMessage = 'Solde insuffisant'
+            break
+          case 403:
+            errorMessage = 'Passage refusé'
+            break
+          default:
+            errorMessage = data.response || 'Erreur API'
+        }
+        
+        console.error('API error:', response.status, errorMessage)
+        return { 
+          success: false, 
+          message: errorMessage
+        }
+      }
+    } catch (error) {
+      console.error('Error calling Homintec API:', error)
+      return { 
+        success: false, 
+        message: 'Erreur de connexion à l\'API'
+      }
+    }
+  }, [config])
 
   // IndexedDB helper functions
   const initDB = useCallback(async (): Promise<IDBDatabase> => {
@@ -204,6 +388,18 @@ export default function ParkSmartKiosk() {
       <html>
       <head>
         <style>
+        @page {
+              margin: 0;
+              size: auto;
+            }
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+              @page {
+                margin: 0;
+                size: auto;
+              }
+            }
           body { 
             font-family: 'Courier New', monospace; 
             width: 80mm; 
@@ -211,9 +407,13 @@ export default function ParkSmartKiosk() {
             padding: 10px;
             font-size: 12px;
           }
+            
           .header { text-align: center; font-weight: bold; margin-bottom: 20px; }
           .line { margin: 5px 0; }
           .divider { border-top: 1px dashed #000; margin: 10px 0; }
+           p {
+              margin: 0;
+            }
         </style>
       </head>
       <body>
@@ -254,33 +454,63 @@ export default function ParkSmartKiosk() {
       </html>
     `
 
-    const iframe = document.createElement('iframe')
-    iframe.style.display = 'none'
-    document.body.appendChild(iframe)
-    
-    iframe.onload = () => {
-      iframe.contentWindow?.print()
+     const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(ticketHTML);
+      iframeDoc.close();
+
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+
       setTimeout(() => {
-        document.body.removeChild(iframe)
-      }, 1000)
+        document.body.removeChild(iframe);
+      }, 100);
     }
-    
-    iframe.srcdoc = ticketHTML
+     
   }, [])
 
   // Gérer le scan de carte
-  const handleCardScan = useCallback(async (cardNumber: string) => {
+  const handleCardScan = useCallback(async (cardNumber: string,typeTag: string) => {
     if (state !== 'idle') return
 
     setState('scanning')
     setCardData(null)
     setError('')
+    
+    // Message d'accueil sur panneau LED (non bloquant)
+   /*  sendMessagePanneau({ 
+      color: 3, 
+      front: 'small', 
+      light: 0, 
+      row1: "SCAN", 
+      row2: "CARTE", 
+      row3: "EN COURS", 
+      row4: config.siteName, 
+      bright: 71 
+    }) */
 
     setTimeout(async () => {
       setState('processing')
       
+      // Message de traitement sur panneau LED (non bloquant)
+      /* sendMessagePanneau({ 
+        color: 5, 
+        front: 'small', 
+        light: 0, 
+        row1: "VERIFICATION", 
+        row2: "CARTE", 
+        row3: "EN COURS", 
+        row4: config.siteName, 
+        bright: 71 
+      }) */
+      
       // Appeler l'API Homintec
-      const apiResult = await callHomintecAPI(cardNumber)
+      const apiResult = await callHomintecAPI(cardNumber,typeTag)
       
       if (apiResult.success) {
         // Succès API - créer un objet card à partir des données API
@@ -300,7 +530,19 @@ export default function ParkSmartKiosk() {
         setCardData({ card: apiCard, message: 'Carte valide' })
         setState('success')
         
-        // Actions en parallèle
+        // Message de succès sur panneau LED (non bloquant)
+       /*  sendMessagePanneau({ 
+          color: 2, 
+          front: 'small', 
+          light: 0, 
+          row1: "CARTE", 
+          row2: "VALIDE", 
+          row3: "BONNE", 
+          row4: "ROUTE", 
+          bright: 71 
+        })
+         */
+        // Actions en parallèle (sans sendMessagePanneau)
         await Promise.all([
           createTransaction(apiCard),
           openBarrier(),
@@ -316,12 +558,35 @@ export default function ParkSmartKiosk() {
           setTimeout(() => {
             setState('idle')
             setCardData(null)
+            // Message de retour à l'accueil (non bloquant)
+           /*  sendMessagePanneau({ 
+              color: 7, 
+              front: 'small', 
+              light: 0, 
+              row1: "BIENVENU", 
+              row2: "PEAGE", 
+              row3: config.siteName, 
+              row4: 'SAFER', 
+              bright: 71 
+            }) */
           }, 2000)
         }, 3000)
       } else {
         // Erreur API
         setError(apiResult.message)
         setState('error')
+        
+        // Message d'erreur sur panneau LED (non bloquant)
+        /* sendMessagePanneau({ 
+          color: 1, 
+          front: 'small', 
+          light: 0, 
+          row1: "ERREUR", 
+          row2: apiResult.message.substring(0, 20), 
+          row3: "VEUILLEZ", 
+          row4: "REESSAYER", 
+          bright: 71 
+        }) */
         
         // Logger l'erreur
         try {
@@ -335,15 +600,64 @@ export default function ParkSmartKiosk() {
           console.error('Erreur logging:', logError)
         }
         
-        // Reset après 2 secondes
+        // Reset après 2 secondes avec message d'accueil
         setTimeout(() => {
           setState('cooldown')
-          setTimeout(() => setState('idle'), 1000)
+          setTimeout(() => {
+            setState('idle')
+            // Message de retour à l'accueil après erreur (non bloquant)
+            /* sendMessagePanneau({ 
+              color: 7, 
+              front: 'small', 
+              light: 0, 
+              row1: "BIENVENU", 
+              row2: "PEAGE", 
+              row3: config.siteName, 
+              row4: 'SAFER', 
+              bright: 71 
+            }) */
+          }, 1000)
         }, 2000)
       }
     }, 1500)
-  }, [state, callHomintecAPI, createTransaction, openBarrier, fetchTodayStats, printTicket])
+  }, [state, callHomintecAPI, createTransaction, openBarrier, fetchTodayStats, printTicket, sendMessagePanneau, config])
 
+  // Socket.IO connection for UHF tag detection
+  useEffect(() => {
+    // Connect to Socket.IO server with fallback options
+    socketRef.current = io('http://192.168.1.84:5001', {
+      transports: ['polling', 'websocket'],
+      timeout: 5000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    })
+    
+    socketRef.current.on('connect', () => {
+      console.log('🔌 Socket.IO connecté pour détection UHF')
+    })
+    
+    socketRef.current.on('disconnect', () => {
+      console.log('🔌 Socket.IO déconnecté')
+    })
+    
+    // Listen for new UHF tag events
+    socketRef.current.on('new_event', (data: { card: string, door: number, reader: string, type: number, time: string }) => {
+      console.log('📡 Événement UHF reçu:', data)
+      
+      // Process UHF tag automatically if in idle state
+      if (state === 'idle' && data.card) {
+        console.log('🏷️ Tag UHF détecté:', data.card)
+        handleCardScan(data.card, 'UHF')
+      }
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+      }
+    }
+  }, [state, handleCardScan])
 
   // Global keyboard listener for kiosk mode
   useEffect(() => {
@@ -359,7 +673,7 @@ export default function ParkSmartKiosk() {
       if (e.key === 'Enter' && inputRef.current.value) {
         const cardNumber = inputRef.current.value.trim()
         if (cardNumber) {
-          handleCardScan(cardNumber)
+          handleCardScan(cardNumber, 'CARTE')
           inputRef.current.value = ''
         }
         e.preventDefault()
@@ -378,7 +692,7 @@ export default function ParkSmartKiosk() {
     if (value.includes('\n') || value.includes('\r')) {
       const cardNumber = value.replace(/[\n\r]/g, '').trim()
       if (cardNumber) {
-        handleCardScan(cardNumber)
+        handleCardScan(cardNumber, 'CARTE')
       }
       e.target.value = ''
     }
@@ -390,7 +704,7 @@ export default function ParkSmartKiosk() {
       const cardNumber = (e.target as HTMLInputElement).value.trim()
       console.log('Enter pressed, card number:', cardNumber)
       if (cardNumber) {
-        handleCardScan(cardNumber)
+        handleCardScan(cardNumber, 'CARTE')
         ;(e.target as HTMLInputElement).value = ''
       }
       e.preventDefault()
@@ -403,7 +717,7 @@ export default function ParkSmartKiosk() {
     const cardNumber = pastedText.trim()
     console.log('Pasted:', cardNumber)
     if (cardNumber) {
-      handleCardScan(cardNumber)
+      handleCardScan(cardNumber,'CARTE')
       ;(e.target as HTMLInputElement).value = ''
     }
   }
@@ -423,12 +737,12 @@ export default function ParkSmartKiosk() {
           <div className="flex items-center space-x-6">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-indigo-400 rounded-xl blur-lg animate-glow" />
-              <div className="relative bg-gradient-to-r from-cyan-500 to-indigo-500 p-3 rounded-xl">
-                <Car className="w-10 h-10 text-white" />
+              <div className="relative bg-white p-3 rounded-xl">
+                <img src="/logo.png" alt="SAFER Logo" className="w-10 h-10" />
               </div>
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">Gate24</h1>
+              <h1 className="text-3xl font-bold text-white tracking-tight">SAFER</h1>
               <p className="text-cyan-300 text-sm font-medium">Borne de Télépaiement</p>
             </div>
           </div>
@@ -446,8 +760,10 @@ export default function ParkSmartKiosk() {
             <div className="flex items-center space-x-3 bg-white/10 px-4 py-2 rounded-xl backdrop-blur-sm">
               {isOnline ? (
                 <>
-                  <Wifi className="w-5 h-5 text-green-400 animate-pulse" />
-                  <span className="text-white text-sm font-medium">En ligne</span>
+                  <Wifi className={`w-5 h-5 text-green-400 ${isPinging ? 'animate-pulse' : ''}`} />
+                  <span className="text-white text-sm font-medium">
+                    {isPinging ? 'Ping...' : 'En ligne'}
+                  </span>
                 </>
               ) : (
                 <>
@@ -475,7 +791,7 @@ export default function ParkSmartKiosk() {
           {/* État IDLE */}
           {state === 'idle' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-12 rounded-3xl text-center">
+              <div className="glass-effect p-8 rounded-3xl text-center">
                 <div className="relative mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-indigo-400 rounded-full blur-2xl animate-pulse-glow" />
                   <div className="relative bg-gradient-to-r from-cyan-500 to-indigo-500 p-8 rounded-full">
@@ -496,7 +812,7 @@ export default function ParkSmartKiosk() {
                     ref={inputRef}
                     type="text"
                     className="relative w-full p-4 border-2 border-cyan-400/50 rounded-2xl bg-white/10 text-white placeholder-cyan-300 text-lg font-mono backdrop-blur-sm focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-400/20 transition-all"
-                    placeholder="Entrez numéro de carte et appuyez Entrée"
+                    placeholder="Scanner votre Tag"
                     onChange={handleInputChange}
                     onKeyDown={handleKeyPress}
                     onPaste={handlePaste}
@@ -515,7 +831,7 @@ export default function ParkSmartKiosk() {
           {/* État SCANNING */}
           {state === 'scanning' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-12 rounded-3xl text-center">
+              <div className="glass-effect p-8 rounded-3xl text-center">
                 <div className="relative mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full blur-2xl animate-spin-slow" />
                   <div className="relative bg-gradient-to-r from-cyan-500 to-blue-500 p-8 rounded-full">
@@ -542,7 +858,7 @@ export default function ParkSmartKiosk() {
           {/* État PROCESSING */}
           {state === 'processing' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-12 rounded-3xl text-center">
+              <div className="glass-effect p-8 rounded-3xl text-center">
                 <div className="relative mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full blur-2xl animate-pulse" />
                   <div className="relative bg-gradient-to-r from-indigo-500 to-purple-500 p-8 rounded-full">
@@ -569,7 +885,7 @@ export default function ParkSmartKiosk() {
           {/* État SUCCESS */}
           {state === 'success' && cardData && (
             <div className="animate-slide-up">
-              <div className="glass-effect p-12 rounded-3xl text-center">
+              <div className="glass-effect p-8 rounded-3xl text-center">
                 <div className="relative mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full blur-2xl animate-pulse" />
                   <div className="relative bg-gradient-to-r from-green-500 to-emerald-500 p-8 rounded-full">
@@ -608,7 +924,7 @@ export default function ParkSmartKiosk() {
           {/* État ERROR */}
           {state === 'error' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-12 rounded-3xl text-center">
+              <div className="glass-effect p-8 rounded-3xl text-center">
                 <div className="relative mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-red-400 to-orange-400 rounded-full blur-2xl animate-pulse" />
                   <div className="relative bg-gradient-to-r from-red-500 to-orange-500 p-8 rounded-full">
@@ -637,7 +953,7 @@ export default function ParkSmartKiosk() {
           {/* État COOLDOWN */}
           {state === 'cooldown' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-12 rounded-3xl text-center">
+              <div className="glass-effect p-8 rounded-3xl text-center">
                 <div className="relative mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-gray-400 to-slate-400 rounded-full blur-2xl animate-pulse" />
                   <div className="relative bg-gradient-to-r from-gray-500 to-slate-500 p-8 rounded-full">
@@ -655,7 +971,7 @@ export default function ParkSmartKiosk() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 glass-effect m-6 p-6 rounded-2xl">
+      <footer className="relative z-10 glass-effect m-4 p-4 rounded-2xl">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-6">
             <div className="bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 p-4 rounded-xl backdrop-blur-sm">

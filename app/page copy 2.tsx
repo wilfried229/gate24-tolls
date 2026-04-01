@@ -87,106 +87,166 @@ export default function ParkSmartKiosk() {
     }
   }, [])
 
-  // IndexedDB helper functions
-  const initDB = useCallback(async (): Promise<IDBDatabase> => {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open('Gate24DB', 1)
-      
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve(request.result)
-      
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result
-        
-        // Create transactions store
-        if (!db.objectStoreNames.contains('transactions')) {
-          const transactionStore = db.createObjectStore('transactions', { 
-            keyPath: 'id', 
-            autoIncrement: true 
-          })
-          transactionStore.createIndex('created_at', 'created_at')
-          transactionStore.createIndex('card_number', 'card_number')
-        }
-        
-        // Create activity logs store
-        if (!db.objectStoreNames.contains('activity_logs')) {
-          const logStore = db.createObjectStore('activity_logs', { 
-            keyPath: 'id', 
-            autoIncrement: true 
-          })
-          logStore.createIndex('created_at', 'created_at')
-          logStore.createIndex('action', 'action')
-        }
-      }
-    })
-  }, [])
-
-  // Récupérer les statistiques du jour avec IndexedDB
+  // Récupérer les statistiques du jour
   const fetchTodayStats = useCallback(async () => {
     try {
-      const db = await initDB()
       const today = format(new Date(), 'yyyy-MM-dd')
-      
-      return new Promise<number>((resolve) => {
-        const transaction = db.transaction(['transactions'], 'readonly')
-        const store = transaction.objectStore('transactions')
-        const index = store.index('created_at')
-        
-        const range = IDBKeyRange.bound(
-          `${today}T00:00:00`,
-          `${today}T23:59:59`
-        )
-        
-        const request = index.count(range)
-        request.onsuccess = () => resolve(request.result || 0)
-        request.onerror = () => resolve(0)
-      })
+      const { count } = await supabase
+        .from('gopass_transactions')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', `${today}T00:00:00`)
+        .lt('created_at', `${today}T23:59:59`)
+
+      setTodayPassages(count || 0)
     } catch (error) {
       console.error('Erreur lors de la récupération des statistiques:', error)
-      return 0
     }
-  }, [initDB])
+  }, [])
 
-  // Créer une transaction avec IndexedDB
-  const createTransaction = useCallback(async (card: Card): Promise<void> => {
+  useEffect(() => {
+    fetchTodayStats()
+    const interval = setInterval(fetchTodayStats, 30000) // Toutes les 30 secondes
+    return () => clearInterval(interval)
+  }, [fetchTodayStats])
+
+  // Focus automatique sur l'input caché
+  useEffect(() => {
+    if (state === 'idle' && inputRef.current) {
+      inputRef.current.focus()
+    }
+  }, [state])
+
+  // Rechercher une carte
+  const searchCard = useCallback(async (cardNumber: string): Promise<CardData | null> => {
     try {
-      const db = await initDB()
-      
-      // Insérer transaction
-      const transaction = db.transaction(['transactions'], 'readwrite')
-      const store = transaction.objectStore('transactions')
-      
-      await store.add({
-        card_id: card.id,
-        card_number: card.card_number,
-        holder_name: card.holder_name,
-        transaction_type: 'entry',
-        amount: 0,
-        barrier_id: 'main_entrance',
-        created_at: new Date().toISOString(),
-        site: config.siteName,
-        lane: config.lane
+      const { data: card, error } = await supabase
+        .from('gopass_cards')
+        .select('*')
+        .or(`card_number.eq.${cardNumber},rfid_code.eq.${cardNumber}`)
+        .single()
+
+      if (error || !card) {
+        return { card: null as any, message: 'Carte non trouvée' }
+      }
+
+      // Vérifications
+      if (!card.is_active) {
+        return { card, message: 'Carte désactivée' }
+      }
+
+      if (new Date(card.expires_at) < new Date()) {
+        return { card, message: 'Carte expirée' }
+      }
+
+      if (card.subscription_type === 'credits' && card.balance <= 0) {
+        return { card, message: 'Solde insuffisant' }
+      }
+
+      return { card, message: 'Carte valide' }
+    } catch (error) {
+      console.error('Erreur recherche carte:', error)
+      return { card: null as any, message: 'Erreur système' }
+    }
+  }, [])
+
+  // Appel API Homintec
+  const callHomintecAPI = useCallback(async (cardNumber: string): Promise<{success: boolean, data?: any, message: string}> => {
+    try {
+      const response = await fetch(`http://${config.serverAddress}:${config.serverPort}/api/v2/homintec/passage/abonners`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          site: config.siteName,
+          voie: config.lane,
+          montant_passage: 500,
+          targId: cardNumber,
+          percepteur: "Gate24_KIOSK"
+        })
       })
 
-      // Logger l'activité
-      const logTransaction = db.transaction(['activity_logs'], 'readwrite')
-      const logStore = logTransaction.objectStore('activity_logs')
+      const data = await response.json()
       
-      await logStore.add({
+      if (response.status === 200 || response.status === 201) {
+        // Succès - carte valide
+        console.log('API response:', data)
+        return { 
+          success: true, 
+          data: data,
+          message: 'Carte valide'
+        }
+      } else {
+        // Gérer les différents cas d'erreur
+        let errorMessage = 'Erreur inconnue'
+        
+        switch (response.status) {
+          case 400:
+            errorMessage = 'Tag invalide'
+            break
+          case 401:
+            errorMessage = 'Tag désactivé'
+            break
+          case 402:
+            errorMessage = 'Tag supprimé'
+            break
+          case 300:
+            errorMessage = 'Solde insuffisant'
+            break
+          case 403:
+            errorMessage = 'Passage refusé'
+            break
+          default:
+            errorMessage = data.response || 'Erreur API'
+        }
+        
+        console.error('API error:', response.status, errorMessage)
+        return { 
+          success: false, 
+          message: errorMessage
+        }
+      }
+    } catch (error) {
+      console.error('Error calling Homintec API:', error)
+      return { 
+        success: false, 
+        message: 'Erreur de connexion à l\'API'
+      }
+    }
+  }, [config])
+
+  // Créer une transaction
+  const createTransaction = useCallback(async (card: Card): Promise<void> => {
+    try {
+      // Insérer transaction
+      await supabase.from('gopass_transactions').insert({
+        card_id: card.id,
+        transaction_type: 'entry',
+        amount: 0,
+        barrier_id: 'main_entrance'
+      })
+
+      // Mettre à jour solde si nécessaire
+      if (card.subscription_type === 'credits') {
+        await supabase
+          .from('gopass_cards')
+          .update({ balance: card.balance - 1 })
+          .eq('id', card.id)
+      }
+
+      // Logger l'activité
+      await supabase.from('activity_logs').insert({
         action: 'card_scan',
         details: 'Accès autorisé',
         card_number: card.card_number,
         holder_name: card.holder_name,
-        success: true,
-        created_at: new Date().toISOString(),
-        site: config.siteName,
-        lane: config.lane
+        success: true
       })
 
     } catch (error) {
       console.error('Erreur transaction:', error)
     }
-  }, [initDB, config])
+  }, [])
 
   // Ouvrir la barrière
   const openBarrier = useCallback(async () => {

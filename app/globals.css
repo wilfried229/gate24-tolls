@@ -18,7 +18,7 @@
 
 @layer components {
   .kiosk-screen {
-    @apply w-full h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900;
+    @apply w-full h-screen bg-gradient-to-br from-slate-900 via-[#131ac1] to-slate-900;
   }
   
   .glass-effect {
@@ -26,7 +26,7 @@
   }
   
   .glow-button {
-    @apply animate-glow bg-gradient-to-r from-indigo-500 to-cyan-500 text-white font-semibold py-4 px-8 rounded-xl shadow-2xl hover:shadow-indigo-500/50 transition-all duration-300;
+    @apply animate-glow bg-gradient-to-r from-[#131ac1] to-cyan-500 text-white font-semibold py-4 px-8 rounded-xl shadow-2xl hover:shadow-[#131ac1]/50 transition-all duration-300;
   }
   
   .status-card {

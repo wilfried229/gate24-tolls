@@ -2,19 +2,29 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    // Simuler l'ouverture de la barrière
-    // Dans un vrai système, ceci communiquerait avec un hardware API
-    
     console.log('🚪 Ouverture de la barrière demandée')
     
-    // Simuler un délai d'ouverture
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    // Appel à l'API hardware de la barrière
+    const barrierResponse = await fetch('http://127.0.0.1:5001/open/1', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-KEY' : "supersecret"
+      },
+      signal: AbortSignal.timeout(5000)
+    })
     
-    console.log('✅ Barrière ouverte avec succès')
+    if (!barrierResponse.ok) {
+      throw new Error(`Erreur API barrière: ${barrierResponse.status}`)
+    }
+    
+    const result = await barrierResponse.text()
+    console.log('✅ Barrière ouverte avec succès:', result)
     
     return NextResponse.json({ 
       success: true, 
       message: 'Barrière ouverte avec succès',
+      hardware_response: result,
       opened_at: new Date().toISOString()
     })
     
@@ -23,7 +33,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ 
       success: false, 
-      message: 'Erreur lors de l\'ouverture de la barrière' 
+      message: `Erreur lors de l'ouverture de la barrière: ${error.message}` 
     }, { status: 500 })
   }
 }
