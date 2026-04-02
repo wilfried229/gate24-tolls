@@ -31,9 +31,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Erreur ouverture barrière:', error)
     
+    const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
+    
     return NextResponse.json({ 
       success: false, 
-      message: `Erreur lors de l'ouverture de la barrière: ${error.message}` 
+      message: `Erreur lors de l'ouverture de la barrière: ${errorMessage}` 
     }, { status: 500 })
   }
 }
