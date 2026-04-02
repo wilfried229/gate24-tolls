@@ -546,9 +546,12 @@ export default function ParkSmartKiosk() {
         // Actions en parallèle (sans sendMessagePanneau)
         await Promise.all([
           createTransaction(apiCard),
-          openBarrier(),
-          fetchTodayStats()
+          openBarrier()
         ])
+        
+        // Mettre à jour le compteur de passages
+        const count = await fetchTodayStats()
+        setTodayPassages(count)
         
         // Imprimer ticket avec les données API
         setTimeout(() => printTicket(apiCard), 1000)
