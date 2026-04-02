@@ -985,7 +985,7 @@ export default function ParkSmartKiosk() {
                     ref={inputRef}
                     type="text"
                     className="relative w-full p-4 border-2 border-cyan-400/50 rounded-2xl bg-white/10 text-white placeholder-cyan-300 text-lg font-mono backdrop-blur-sm focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-400/20 transition-all"
-                    placeholder="Scanner votre Tag"
+                    placeholder="Scannez votre Tag"
                     onChange={handleInputChange}
                     onKeyDown={handleKeyPress}
                     onPaste={handlePaste}
