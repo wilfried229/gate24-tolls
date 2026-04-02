@@ -158,8 +158,8 @@ export default function ParkSmartKiosk() {
           voie: config.lane,
           montant_passage: 500,
           targId: cardNumber,
-          percepteur: "Gate24_KIOSK"
-          //typeTag: typeTag
+          percepteur: "Gate24_KIOSK",
+          typeTag: typeTag
         })
       })
 

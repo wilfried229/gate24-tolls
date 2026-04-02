@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  gate24-kiosk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gate24-kiosk
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - gate24-network
+
+networks:
+  gate24-network:
+    driver: bridge
