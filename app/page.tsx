@@ -815,14 +815,34 @@ export default function ParkSmartKiosk() {
           </div>
         </div>
 
-        {/* Second barrier */}
+        {/* Second barrier - TRAFFIC LIGHT */}
         <div className="absolute right-1/4 top-1/2 transform -translate-y-1/2">
-          <div className="relative">
-            <div className="w-4 h-32 bg-gradient-to-b from-gray-400 to-gray-600 rounded-lg" />
-            <div 
-              className="absolute top-4 right-2 w-48 h-3 bg-gradient-to-l from-red-500 to-red-600 rounded-full origin-right animate-barrier"
-              style={{ animation: 'barrierMove 4s ease-in-out infinite 2s' }}
-            />
+          <div className="relative flex flex-col items-center">
+            {/* Traffic light pole */}
+            <div className="w-3 h-20 bg-gradient-to-b from-gray-400 to-gray-600 rounded-lg" />
+            
+            {/* Traffic light box */}
+            <div className="absolute -top-16 bg-gradient-to-b from-gray-700 to-gray-800 p-2 rounded-lg shadow-lg border border-gray-600">
+              {/* Red light */}
+              <div 
+                className="w-8 h-8 rounded-full mb-2 shadow-inner animate-traffic-red"
+                style={{ 
+                  background: 'radial-gradient(circle at 30% 30%, #ff6666, #cc0000)',
+                  boxShadow: '0 0 20px #ff0000, inset 0 0 10px rgba(0,0,0,0.5)',
+                  animation: 'trafficRed 3s ease-in-out infinite'
+                }}
+              />
+              {/* Green light */}
+              <div 
+                className="w-8 h-8 rounded-full shadow-inner animate-traffic-green"
+                style={{ 
+                  background: 'radial-gradient(circle at 30% 30%, #66ff66, #00cc00)',
+                  boxShadow: '0 0 20px #00ff00, inset 0 0 10px rgba(0,0,0,0.5)',
+                  animation: 'trafficGreen 3s ease-in-out infinite',
+                  opacity: 0.3
+                }}
+              />
+            </div>
           </div>
         </div>
 
