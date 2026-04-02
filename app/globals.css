@@ -33,3 +33,111 @@
     @apply glass-effect p-8 text-white;
   }
 }
+
+@layer utilities {
+  /* Road lines moving animation */
+  @keyframes moveRoadLine {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  /* Barrier arm animation */
+  @keyframes barrierMove {
+    0%, 100% {
+      transform: rotate(0deg);
+    }
+    25% {
+      transform: rotate(-45deg);
+    }
+    50% {
+      transform: rotate(-45deg);
+    }
+    75% {
+      transform: rotate(0deg);
+    }
+  }
+
+  /* Car movement animations */
+  @keyframes carMove1 {
+    0% {
+      transform: translateX(-100px);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(calc(100vw + 100px));
+      opacity: 0;
+    }
+  }
+
+  @keyframes carMove2 {
+    0% {
+      transform: translateX(-100px);
+      opacity: 0;
+    }
+    5% {
+      opacity: 1;
+    }
+    95% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(calc(100vw + 100px));
+      opacity: 0;
+    }
+  }
+
+  @keyframes carMove3 {
+    0% {
+      transform: translateX(100px) scaleX(-1);
+      opacity: 0;
+    }
+    5% {
+      opacity: 1;
+    }
+    95% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(calc(-100vw - 100px)) scaleX(-1);
+      opacity: 0;
+    }
+  }
+
+  /* Floating animation for RFID cards */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 0.3;
+    }
+    25% {
+      transform: translateY(-20px) rotate(5deg);
+      opacity: 0.6;
+    }
+    50% {
+      transform: translateY(-10px) rotate(-5deg);
+      opacity: 0.4;
+    }
+    75% {
+      transform: translateY(-30px) rotate(3deg);
+      opacity: 0.5;
+    }
+  }
+}

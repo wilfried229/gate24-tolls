@@ -737,103 +737,11 @@ export default function ParkSmartKiosk() {
 
   return (
     <div className="kiosk-screen relative overflow-hidden">
-      {/* Animated Toll Background */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Animated road lines */}
-        <div className="absolute inset-0">
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-full h-px bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent"
-              style={{
-                top: `${20 + i * 15}%`,
-                animation: `moveRoadLine ${3 + i * 0.5}s linear infinite`,
-                animationDelay: `${i * 0.3}s`
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Toll barrier animation */}
-        <div className="absolute left-1/4 top-1/2 transform -translate-y-1/2">
-          <div className="relative">
-            {/* Barrier post */}
-            <div className="w-4 h-32 bg-gradient-to-b from-gray-400 to-gray-600 rounded-lg" />
-            {/* Barrier arm */}
-            <div 
-              className="absolute top-4 left-2 w-48 h-3 bg-gradient-to-r from-red-500 to-red-600 rounded-full origin-left animate-barrier"
-              style={{ animation: 'barrierMove 4s ease-in-out infinite' }}
-            />
-          </div>
-        </div>
-
-        {/* Second barrier */}
-        <div className="absolute right-1/4 top-1/2 transform -translate-y-1/2">
-          <div className="relative">
-            <div className="w-4 h-32 bg-gradient-to-b from-gray-400 to-gray-600 rounded-lg" />
-            <div 
-              className="absolute top-4 right-2 w-48 h-3 bg-gradient-to-l from-red-500 to-red-600 rounded-full origin-right animate-barrier"
-              style={{ animation: 'barrierMove 4s ease-in-out infinite 2s' }}
-            />
-          </div>
-        </div>
-
-        {/* Moving cars */}
-        <div className="absolute bottom-1/4 left-0 w-full">
-          {/* Car 1 */}
-          <div 
-            className="absolute bottom-0 animate-car1"
-            style={{ animation: 'carMove1 8s linear infinite' }}
-          >
-            <div className="flex items-center space-x-1">
-              <div className="w-12 h-6 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg" />
-              <div className="w-2 h-4 bg-yellow-400/50 rounded-full animate-pulse" />
-            </div>
-          </div>
-          {/* Car 2 */}
-          <div 
-            className="absolute bottom-8 animate-car2"
-            style={{ animation: 'carMove2 12s linear infinite' }}
-          >
-            <div className="flex items-center space-x-1">
-              <div className="w-14 h-7 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg" />
-              <div className="w-2 h-4 bg-yellow-400/50 rounded-full animate-pulse" />
-            </div>
-          </div>
-          {/* Car 3 - opposite direction */}
-          <div 
-            className="absolute bottom-16 right-0 animate-car3"
-            style={{ animation: 'carMove3 10s linear infinite' }}
-          >
-            <div className="flex items-center space-x-1">
-              <div className="w-2 h-4 bg-red-400/50 rounded-full animate-pulse" />
-              <div className="w-10 h-5 bg-gradient-to-r from-emerald-500 to-green-500 rounded-lg" />
-            </div>
-          </div>
-        </div>
-
-        {/* Floating RFID/card icons */}
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={`rfid-${i}`}
-            className="absolute animate-float"
-            style={{
-              left: `${10 + i * 15}%`,
-              top: `${15 + (i % 3) * 25}%`,
-              animation: `float ${5 + i}s ease-in-out infinite`,
-              animationDelay: `${i * 0.8}s`
-            }}
-          >
-            <div className="w-8 h-5 bg-gradient-to-r from-cyan-400/20 to-indigo-400/20 rounded border border-cyan-400/30 flex items-center justify-center">
-              <div className="w-4 h-3 border border-cyan-400/50 rounded-sm" />
-            </div>
-          </div>
-        ))}
-
-        {/* Glowing orbs */}
-        <div className="absolute top-20 left-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/5 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }} />
+      {/* Background animated elements */}
+      <div className="absolute inset-0">
+        <div className="absolute top-20 left-20 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-purple-500/10 rounded-full blur-2xl animate-pulse" style={{ animationDelay: '2s' }} />
       </div>
 
       {/* Header */}
