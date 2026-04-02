@@ -390,25 +390,80 @@ export default function ParkSmartKiosk() {
     }
   }, [config])
 
-  // Imprimer le ticket
-  const printTicket = useCallback((card: Card) => {
+  // Imprimer le ticket via API backend (sans boîte de dialogue navigateur)
+  const printTicket = useCallback(async (card: Card) => {
+    const ticketContent = `
+      <div class="header">
+        <div>SAFER</div>
+        <div style="font-size: 10px;">*******************</div>
+      </div>
+      
+      <div class="line">
+        <strong>Date:</strong> ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}
+      </div>
+      
+      <div class="divider"></div>
+      
+      <div class="line">
+        <strong>Titulaire:</strong><br/>
+        ${card.holder_name}
+      </div>
+      
+      <div class="line">
+        <strong>Carte N°:</strong> ${card.card_number}
+      </div>
+      
+      <div class="line">
+        <strong>Catégorie:</strong> ${card.category}
+      </div>
+      
+      <div class="line">
+        <strong>Solde:</strong> ${card.balance} FCFA
+      </div>
+      
+      <div class="divider"></div>
+      
+      <div class="line" style="text-align: center; font-size: 10px;">
+        Merci de votre confiance
+      </div>
+    `
+
+    try {
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: ticketContent })
+      })
+
+      const result = await response.json()
+      
+      if (result.success) {
+        console.log('✅ Ticket imprimé:', result.jobId)
+      } else {
+        console.error('❌ Erreur impression:', result.error)
+        // Fallback: impression navigateur si l'API échoue
+        fallbackPrintTicket(card)
+      }
+    } catch (error) {
+      console.error('❌ Erreur API impression:', error)
+      // Fallback: impression navigateur
+      fallbackPrintTicket(card)
+    }
+  }, [])
+
+  // Fallback: impression via navigateur (iframe)
+  const fallbackPrintTicket = (card: Card) => {
     const ticketHTML = `
       <!DOCTYPE html>
       <html>
       <head>
         <style>
-        @page {
-              margin: 0;
-              size: auto;
-            }
-            @media print {
-              body { margin: 0; }
-              .no-print { display: none; }
-              @page {
-                margin: 0;
-                size: auto;
-              }
-            }
+          @page { margin: 0; size: 80mm auto; }
+          @media print {
+            body { margin: 0; }
+            .no-print { display: none; }
+            @page { margin: 0; size: 80mm auto; }
+          }
           body { 
             font-family: 'Courier New', monospace; 
             width: 80mm; 
@@ -416,16 +471,13 @@ export default function ParkSmartKiosk() {
             padding: 10px;
             font-size: 12px;
           }
-            
           .header { text-align: center; font-weight: bold; margin-bottom: 20px; }
           .line { margin: 5px 0; }
           .divider { border-top: 1px dashed #000; margin: 10px 0; }
-           p {
-              margin: 0;
-            }
+          p { margin: 0; }
         </style>
       </head>
-      <body>
+      <body onload="window.print(); setTimeout(() => window.close(), 500);">
         <div class="header">
           <div>SAFER</div>
           <div style="font-size: 10px;">*******************</div>
@@ -463,25 +515,17 @@ export default function ParkSmartKiosk() {
       </html>
     `
 
-     const iframe = document.createElement("iframe");
-    iframe.style.display = "none";
-    document.body.appendChild(iframe);
-
-    const iframeDoc = iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(ticketHTML);
-      iframeDoc.close();
-
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-
+    const printWindow = window.open('', '_blank', 'width=300,height=400')
+    if (printWindow) {
+      printWindow.document.write(ticketHTML)
+      printWindow.document.close()
       setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 100);
+        if (printWindow && !printWindow.closed) {
+          printWindow.close()
+        }
+      }, 1000)
     }
-     
-  }, [])
+  }
 
   // Gérer le scan de carte
   const handleCardScan = useCallback(async (cardNumber: string,typeTag: string) => {
