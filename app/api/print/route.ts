@@ -3,9 +3,52 @@ import { exec } from 'child_process'
 import { promisify } from 'util'
 import { writeFile, unlink } from 'fs/promises'
 import { join } from 'path'
-import { tmpdir } from 'os'
+import { tmpdir, platform } from 'os'
 
 const execAsync = promisify(exec)
+
+// Détecter Chrome/Chromium selon l'OS
+function getChromePath(): string {
+  const os = platform()
+  
+  if (os === 'win32') {
+    // Windows - chemins possibles
+    const winPaths = [
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      'chrome' // si dans PATH
+    ]
+    return winPaths[0] // Premier par défaut
+  } else if (os === 'darwin') {
+    // macOS
+    return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  } else {
+    // Linux
+    return 'chromium'
+  }
+}
+
+// Imprimer selon l'OS
+async function printFile(filePath: string, printerName: string): Promise<string> {
+  const os = platform()
+  
+  if (os === 'win32') {
+    // Windows - utiliser SumatraPDF ou Chrome directement
+    const chromePath = getChromePath()
+    const cmd = printerName === 'default'
+      ? `"${chromePath}" --headless --print --print-to-pdf-no-header "${filePath}"`
+      : `"${chromePath}" --headless --print --print-to-pdf-no-header "${filePath}"`
+    const { stdout } = await execAsync(cmd)
+    return stdout
+  } else {
+    // Linux/macOS - utiliser CUPS
+    const cmd = printerName === 'default' 
+      ? `lp "${filePath}"`
+      : `lp -d ${printerName} "${filePath}"`
+    const { stdout } = await execAsync(cmd)
+    return stdout
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,31 +90,30 @@ export async function POST(request: NextRequest) {
 
     await writeFile(tempFile, htmlContent)
 
-    // Convertir en PDF avec Chromium en mode headless
+    // Convertir en PDF avec Chrome/Chromium selon l'OS
     const pdfFile = tempFile.replace('.html', '.pdf')
-    await execAsync(
-      `chromium --headless --disable-gpu --print-to-pdf-no-header --print-to-pdf="${pdfFile}" "${tempFile}"`
-    )
-
-    // Imprimer avec CUPS (lp command)
-    const printCmd = printerName === 'default' 
-      ? `lp "${pdfFile}"`
-      : `lp -d ${printerName} "${pdfFile}"`
+    const chromePath = getChromePath()
     
-    const { stdout, stderr } = await execAsync(printCmd)
+    try {
+      await execAsync(
+        `"${chromePath}" --headless --disable-gpu --print-to-pdf-no-header --print-to-pdf="${pdfFile}" "${tempFile}"`
+      )
+    } catch (error) {
+      console.error('Erreur conversion PDF:', error)
+      throw new Error('Impossible de convertir le ticket en PDF. Chrome/Chromium est-il installé ?')
+    }
+
+    // Imprimer selon l'OS
+    const stdout = await printFile(pdfFile, printerName)
     
     // Nettoyer les fichiers temporaires
     await unlink(tempFile).catch(() => {})
     await unlink(pdfFile).catch(() => {})
 
-    if (stderr && !stdout.includes('request id')) {
-      throw new Error(stderr)
-    }
-
     return NextResponse.json({ 
       success: true, 
       message: 'Ticket envoyé à l\'imprimante',
-      jobId: stdout.trim()
+      jobId: stdout?.trim() || 'unknown'
     })
 
   } catch (error) {
