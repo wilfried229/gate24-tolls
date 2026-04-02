@@ -686,7 +686,7 @@ export default function ParkSmartKiosk() {
   // Socket.IO connection for UHF tag detection
   useEffect(() => {
     // Connect to Socket.IO server with fallback options
-    socketRef.current = io('http://192.168.1.84:5001', {
+    socketRef.current = io(`http://${config.kioskAddress}:5001`, {
       transports: ['polling', 'websocket'],
       timeout: 5000,
       reconnectionAttempts: 5,
@@ -905,27 +905,27 @@ export default function ParkSmartKiosk() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 glass-effect m-6 p-6 rounded-2xl">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-6">
+      <header className="relative z-10 glass-effect m-3 md:m-6 p-3 md:p-6 rounded-2xl">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center space-x-3 md:space-x-6">
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-indigo-400 rounded-xl blur-lg animate-glow" />
-              <div className="relative bg-white p-3 rounded-xl">
-                <img src="/logo.png" alt="SAFER Logo" className="w-10 h-10" />
+              <div className="relative bg-white p-2 md:p-3 rounded-xl">
+                <img src="/logo.png" alt="SAFER Logo" className="w-8 h-8 md:w-10 md:h-10" />
               </div>
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight">SAFER</h1>
-              <p className="text-cyan-300 text-sm font-medium">Borne de Télépaiement</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">SAFER</h1>
+              <p className="text-cyan-300 text-xs md:text-sm font-medium">Borne de Télépaiement</p>
             </div>
           </div>
           
-          <div className="flex items-center space-x-8">
+          <div className="flex items-center space-x-4 md:space-x-8">
             <div className="text-white text-right">
-              <div className="text-2xl font-bold font-mono tracking-wider">
+              <div className="text-xl md:text-2xl font-bold font-mono tracking-wider">
                 {format(currentTime, 'HH:mm:ss', { locale: fr })}
               </div>
-              <div className="text-sm text-cyan-300 capitalize">
+              <div className="text-xs md:text-sm text-cyan-300 capitalize">
                 {format(currentTime, 'EEEE dd MMMM yyyy', { locale: fr })}
               </div>
             </div>
@@ -948,34 +948,34 @@ export default function ParkSmartKiosk() {
 
             <a
               href="/config"
-              className="flex items-center space-x-2 bg-white/10 px-4 py-2 rounded-xl backdrop-blur-sm hover:bg-white/20 transition-all"
+              className="flex items-center space-x-2 bg-white/10 px-3 py-2 md:px-4 md:py-2 rounded-xl backdrop-blur-sm hover:bg-white/20 transition-all"
               title="Configuration"
             >
-              <Settings className="w-5 h-5 text-cyan-400" />
-              <span className="text-white text-sm font-medium">Config</span>
+              <Settings className="w-4 h-4 md:w-5 md:h-5 text-cyan-400" />
+              <span className="text-white text-sm font-medium hidden md:block">Config</span>
             </a>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-2xl">
+      <main className="relative z-10 flex-1 flex items-center justify-center p-4 md:p-8">
+        <div className="w-full max-w-md md:max-w-2xl">
           {/* État IDLE */}
           {state === 'idle' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-8 rounded-3xl text-center">
-                <div className="relative mb-8">
+              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+                <div className="relative mb-4 md:mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-indigo-400 rounded-full blur-2xl animate-pulse-glow" />
-                  <div className="relative bg-gradient-to-r from-cyan-500 to-indigo-500 p-8 rounded-full">
-                    <CreditCard className="w-32 h-32 text-white animate-pulse" />
+                  <div className="relative bg-gradient-to-r from-cyan-500 to-indigo-500 p-4 md:p-8 rounded-full inline-flex">
+                    <CreditCard className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
                 
-                <h2 className="text-4xl font-bold mb-4 text-white">
+                <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 text-white">
                   Présentez votre carte
                 </h2>
-                <p className="text-cyan-300 text-lg mb-8">
+                <p className="text-cyan-300 text-base md:text-lg mb-4 md:mb-8">
                   Approchez votre carte de la borne
                 </p>
                 
@@ -984,7 +984,7 @@ export default function ParkSmartKiosk() {
                   <input
                     ref={inputRef}
                     type="text"
-                    className="relative w-full p-4 border-2 border-cyan-400/50 rounded-2xl bg-white/10 text-white placeholder-cyan-300 text-lg font-mono backdrop-blur-sm focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-400/20 transition-all"
+                    className="mask-password relative w-full p-4 border-2 border-cyan-400/50 rounded-2xl bg-white/10 text-white placeholder-cyan-300 text-lg font-mono backdrop-blur-sm focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-400/20 transition-all"
                     placeholder="Scannez votre Tag"
                     onChange={handleInputChange}
                     onKeyDown={handleKeyPress}
@@ -1004,18 +1004,18 @@ export default function ParkSmartKiosk() {
           {/* État SCANNING */}
           {state === 'scanning' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-8 rounded-3xl text-center">
-                <div className="relative mb-8">
+              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+                <div className="relative mb-4 md:mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full blur-2xl animate-spin-slow" />
-                  <div className="relative bg-gradient-to-r from-cyan-500 to-blue-500 p-8 rounded-full">
-                    <Loader2 className="w-32 h-32 text-white animate-spin" />
+                  <div className="relative bg-gradient-to-r from-cyan-500 to-blue-500 p-4 md:p-8 rounded-full inline-flex">
+                    <Loader2 className="w-20 h-20 md:w-32 md:h-32 text-white animate-spin" />
                   </div>
                 </div>
                 
-                <h2 className="text-4xl font-bold mb-4 text-white">
+                <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 text-white">
                   Lecture en cours...
                 </h2>
-                <p className="text-cyan-300 text-lg">
+                <p className="text-cyan-300 text-base md:text-lg">
                   Veuillez patienter
                 </p>
                 
@@ -1031,18 +1031,18 @@ export default function ParkSmartKiosk() {
           {/* État PROCESSING */}
           {state === 'processing' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-8 rounded-3xl text-center">
-                <div className="relative mb-8">
+              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+                <div className="relative mb-4 md:mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-indigo-500 to-purple-500 p-8 rounded-full">
-                    <ShieldCheck className="w-32 h-32 text-white animate-pulse" />
+                  <div className="relative bg-gradient-to-r from-indigo-500 to-purple-500 p-4 md:p-8 rounded-full inline-flex">
+                    <ShieldCheck className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
                 
-                <h2 className="text-4xl font-bold mb-4 text-white">
+                <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 text-white">
                   Vérification...
                 </h2>
-                <p className="text-cyan-300 text-lg">
+                <p className="text-cyan-300 text-base md:text-lg">
                   Validation de votre accès
                 </p>
                 
@@ -1058,15 +1058,15 @@ export default function ParkSmartKiosk() {
           {/* État SUCCESS */}
           {state === 'success' && cardData && (
             <div className="animate-slide-up">
-              <div className="glass-effect p-8 rounded-3xl text-center">
-                <div className="relative mb-8">
+              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+                <div className="relative mb-4 md:mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-green-500 to-emerald-500 p-8 rounded-full">
-                    <CheckCircle2 className="w-32 h-32 text-white animate-pulse" />
+                  <div className="relative bg-gradient-to-r from-green-500 to-emerald-500 p-4 md:p-8 rounded-full inline-flex">
+                    <CheckCircle2 className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
                 
-                <h2 className="text-4xl font-bold mb-6 text-white">
+                <h2 className="text-2xl md:text-4xl font-bold mb-4 md:mb-6 text-white">
                   Accès autorisé
                 </h2>
                 
@@ -1097,15 +1097,15 @@ export default function ParkSmartKiosk() {
           {/* État ERROR */}
           {state === 'error' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-8 rounded-3xl text-center">
-                <div className="relative mb-8">
+              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+                <div className="relative mb-4 md:mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-red-400 to-orange-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-red-500 to-orange-500 p-8 rounded-full">
-                    <XCircle className="w-32 h-32 text-white animate-pulse" />
+                  <div className="relative bg-gradient-to-r from-red-500 to-orange-500 p-4 md:p-8 rounded-full inline-flex">
+                    <XCircle className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
                 
-                <h2 className="text-4xl font-bold mb-6 text-white">
+                <h2 className="text-2xl md:text-4xl font-bold mb-4 md:mb-6 text-white">
                   Accès refusé
                 </h2>
                 
@@ -1126,15 +1126,15 @@ export default function ParkSmartKiosk() {
           {/* État COOLDOWN */}
           {state === 'cooldown' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-8 rounded-3xl text-center">
-                <div className="relative mb-8">
+              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+                <div className="relative mb-4 md:mb-8">
                   <div className="absolute inset-0 bg-gradient-to-r from-gray-400 to-slate-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-gray-500 to-slate-500 p-8 rounded-full">
-                    <Loader2 className="w-32 h-32 text-white animate-spin" />
+                  <div className="relative bg-gradient-to-r from-gray-500 to-slate-500 p-4 md:p-8 rounded-full inline-flex">
+                    <Loader2 className="w-20 h-20 md:w-32 md:h-32 text-white animate-spin" />
                   </div>
                 </div>
                 
-                <p className="text-white text-xl">
+                <p className="text-white text-lg md:text-xl">
                   Réinitialisation...
                 </p>
               </div>
@@ -1144,30 +1144,30 @@ export default function ParkSmartKiosk() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 glass-effect m-4 p-4 rounded-2xl">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center space-x-6">
-            <div className="bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 p-4 rounded-xl backdrop-blur-sm">
-              <div className="text-cyan-300 text-sm font-medium mb-1">Passages aujourd'hui</div>
-              <div className="text-3xl font-bold text-white">{todayPassages}</div>
+      <footer className="relative z-10 glass-effect m-2 md:m-4 p-2 md:p-4 rounded-2xl">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-2">
+          <div className="flex items-center space-x-2 md:space-x-6">
+            <div className="bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 p-2 md:p-4 rounded-xl backdrop-blur-sm">
+              <div className="text-cyan-300 text-xs md:text-sm font-medium mb-1">Passages aujourd'hui</div>
+              <div className="text-xl md:text-3xl font-bold text-white">{todayPassages}</div>
             </div>
             
             {config.siteName && (
-              <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 p-4 rounded-xl backdrop-blur-sm">
-                <div className="text-purple-300 text-sm font-medium mb-1">Site</div>
-                <div className="text-lg font-bold text-white">{config.siteName}</div>
+              <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 p-2 md:p-4 rounded-xl backdrop-blur-sm">
+                <div className="text-purple-300 text-xs md:text-sm font-medium mb-1">Site</div>
+                <div className="text-base md:text-lg font-bold text-white">{config.siteName}</div>
               </div>
             )}
             
             {config.lane && (
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-4 rounded-xl backdrop-blur-sm">
-                <div className="text-green-300 text-sm font-medium mb-1">Voie</div>
-                <div className="text-lg font-bold text-white">{config.lane}</div>
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-2 md:p-4 rounded-xl backdrop-blur-sm">
+                <div className="text-green-300 text-xs md:text-sm font-medium mb-1">Voie</div>
+                <div className="text-base md:text-lg font-bold text-white">{config.lane}</div>
               </div>
             )}
           </div>
           
-          <div className="text-cyan-300 text-sm font-medium">
+          <div className="text-cyan-300 text-xs md:text-sm font-medium">
             Gate24 Pro v1.0 • Système de Télépaiement
           </div>
         </div>

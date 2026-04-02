@@ -172,3 +172,9 @@
     }
   }
 }
+
+/* Mask password input characters */
+.mask-password {
+  -webkit-text-security: disc;
+  text-security: disc;
+}
