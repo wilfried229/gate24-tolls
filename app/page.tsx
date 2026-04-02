@@ -521,10 +521,11 @@ export default function ParkSmartKiosk() {
           holder_name: `${apiResult.data.prenom} ${apiResult.data.nom}`,
           category: apiResult.data.targType,
           subscription_type: 'credits',
-          balance: parseInt(apiResult.data.solde), // Convertir le solde en crédits
+          balance: parseInt(apiResult.data.solde),
           is_active: apiResult.data.statutTarg === 'actived',
-          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 an par défaut
-          created_at: new Date().toISOString()
+          expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         }
         
         setCardData({ card: apiCard, message: 'Carte valide' })
