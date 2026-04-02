@@ -15,6 +15,7 @@ interface ConfigData {
   panelPort: string
   siteName: string
   lane: string
+  kioskAddress: string
 }
 
 export default function ConfigPage() {
@@ -24,7 +25,8 @@ export default function ConfigPage() {
     panelAddress: '',
     panelPort: '',
     siteName: '',
-    lane: ''
+    lane: '',
+    kioskAddress: '',
   })
   const [configError, setConfigError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
@@ -50,7 +52,7 @@ export default function ConfigPage() {
     
     // Validation
     if (!config.serverAddress || !config.serverPort || !config.panelAddress || 
-        !config.panelPort || !config.siteName || !config.lane) {
+        !config.panelPort || !config.siteName || !config.lane || !config.kioskAddress) {
       setConfigError('Tous les champs sont obligatoires')
       return
     }
@@ -183,6 +185,8 @@ export default function ConfigPage() {
               </div>
             </div>
 
+          
+
             {/* Site Configuration */}
             <div className="space-y-6 md:col-span-2">
               <h2 className="text-xl font-semibold text-white flex items-center">
@@ -190,7 +194,7 @@ export default function ConfigPage() {
                 Configuration du Site
               </h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-cyan-300 mb-2">
                     Nom du Site
@@ -222,6 +226,19 @@ export default function ConfigPage() {
                     <option value="GATE-RETOUR" className="bg-slate-800">GATE-RETOUR</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-cyan-300 mb-2">
+                    IP de la Borne (Kiosk)
+                  </label>
+                  <input
+                    type="text"
+                    value={config.kioskAddress}
+                    onChange={(e) => handleConfigChange('kioskAddress', e.target.value)}
+                    className="w-full p-4 border border-cyan-400/50 rounded-xl bg-white/10 text-white placeholder-cyan-300 backdrop-blur-sm focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-400/20 transition-all"
+                    placeholder="ex: 192.168.1.50"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -250,7 +267,8 @@ export default function ConfigPage() {
                   panelAddress: '',
                   panelPort: '',
                   siteName: '',
-                  lane: ''
+                  lane: '',
+                  kioskAddress: '',
                 })
                 setSuccessMessage('Configuration effacée!')
                 console.log('Configuration cleared')
@@ -277,12 +295,12 @@ export default function ConfigPage() {
           </div>
 
           {/* Debug Info */}
-          <div className="mt-8 p-6 bg-black/30 rounded-xl">
+         {/*  <div className="mt-8 p-6 bg-black/30 rounded-xl">
             <h3 className="text-cyan-300 text-sm font-medium mb-3">Debug - Configuration actuelle:</h3>
             <pre className="text-white text-xs font-mono">
               {JSON.stringify(config, null, 2)}
             </pre>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

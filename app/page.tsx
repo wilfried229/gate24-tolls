@@ -32,6 +32,7 @@ interface ConfigData {
   panelPort: string
   siteName: string
   lane: string
+  kioskAddress: string
 }
 
 export default function ParkSmartKiosk() {
@@ -52,7 +53,8 @@ export default function ParkSmartKiosk() {
     panelAddress: '',
     panelPort: '',
     siteName: '',
-    lane: ''
+    lane: '',
+    kioskAddress: '',
   })
 
   // Load saved configuration on mount
@@ -375,11 +377,18 @@ export default function ParkSmartKiosk() {
   // Ouvrir la barrière
   const openBarrier = useCallback(async () => {
     try {
-      await fetch('/api/barrier/open', { method: 'POST' })
+      await fetch('/api/barrier/open', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barrierAddress: config.kioskAddress,
+          barrierPort: '5001'
+        })
+      })
     } catch (error) {
       console.error('Erreur ouverture barrière:', error)
     }
-  }, [])
+  }, [config])
 
   // Imprimer le ticket
   const printTicket = useCallback((card: Card) => {
