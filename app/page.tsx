@@ -391,7 +391,7 @@ export default function ParkSmartKiosk() {
   }, [config])
 
   // Imprimer le ticket via API backend (sans boîte de dialogue navigateur)
-  const printTicket = useCallback(async (card: Card) => {
+  /* const printTicket = useCallback(async (card: Card) => {
     const ticketContent = `
       <div class="header">
         <div>SAFER</div>
@@ -449,8 +449,12 @@ export default function ParkSmartKiosk() {
       // Fallback: impression navigateur
       fallbackPrintTicket(card)
     }
-  }, [])
+  }, []) */
 
+
+  const printTicket = useCallback(async (card: Card) => {
+      fallbackPrintTicket(card)
+  }, [])
   // Fallback: impression via navigateur (iframe)
   const fallbackPrintTicket = (card: Card) => {
     const ticketHTML = `
@@ -469,7 +473,7 @@ export default function ParkSmartKiosk() {
             width: 80mm; 
             margin: 0; 
             padding: 10px;
-            font-size: 12px;
+            font-size: 14px;
           }
           .header { text-align: center; font-weight: bold; margin-bottom: 20px; }
           .line { margin: 5px 0; }
