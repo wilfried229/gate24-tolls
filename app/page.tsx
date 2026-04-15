@@ -3,17 +3,20 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { 
-  CreditCard, 
-  Loader2, 
-  CheckCircle2, 
-  XCircle, 
-  Wifi, 
-  WifiOff, 
-  Car, 
-  ShieldCheck, 
+import {
+  CreditCard,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Wifi,
+  WifiOff,
+  Car,
+  ShieldCheck,
   AlertTriangle,
-  Settings
+  Settings,
+  Radio,
+  Sun,
+  Moon
 } from 'lucide-react'
 import { supabase, Card, Transaction, ActivityLog } from '../lib/supabase'
 import { io, Socket } from 'socket.io-client'
@@ -40,11 +43,20 @@ export default function ParkSmartKiosk() {
   const [currentTime, setCurrentTime] = useState(() => new Date())
   const [isOnline, setIsOnline] = useState(true)
   const [isPinging, setIsPinging] = useState(false)
+  const [isSocketConnected, setIsSocketConnected] = useState(false)
+  const [theme, setTheme] = useState<'light' | 'dark-blue'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('theme') as 'light' | 'dark-blue') || 'dark-blue'
+    }
+    return 'dark-blue'
+  })
   const [todayPassages, setTodayPassages] = useState(0)
   const [cardData, setCardData] = useState<CardData | null>(null)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const socketRef = useRef<Socket | null>(null)
+  const stateRef = useRef<KioskState>('idle')
+  const handleCardScanRef = useRef<((cardNumber: string, typeTag: string) => void) | null>(null)
   
   // Configuration state
   const [config, setConfig] = useState<ConfigData>({
@@ -88,6 +100,12 @@ export default function ParkSmartKiosk() {
       body: JSON.stringify(data),
     });
   };
+
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark-blue' : 'light'
+    setTheme(newTheme)
+    localStorage.setItem('theme', newTheme)
+  }
 
   // Mettre à jour l'horloge toutes les secondes
   useEffect(() => {
@@ -683,32 +701,61 @@ export default function ParkSmartKiosk() {
     }, 1500)
   }, [state, callHomintecAPI, createTransaction, openBarrier, fetchTodayStats, printTicket, sendMessagePanneau, config])
 
+  // Sync refs with current values
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  useEffect(() => {
+    handleCardScanRef.current = handleCardScan
+  }, [handleCardScan])
+
+  // Log changes to isSocketConnected for debugging
+  useEffect(() => {
+    console.log('🔄 State isSocketConnected changed to:', isSocketConnected)
+  }, [isSocketConnected])
+
   // Socket.IO connection for UHF tag detection
   useEffect(() => {
+    if (!config.kioskAddress) return
+
     // Connect to Socket.IO server with fallback options
     socketRef.current = io(`http://${config.kioskAddress}:5001`, {
-      transports: ['polling', 'websocket'],
-      timeout: 5000,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+      transports: ['polling'],
+      timeout: 20000,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
+      upgrade: false,
+      forceNew: true
     })
     
     socketRef.current.on('connect', () => {
-      console.log('🔌 Socket.IO connecté pour détection UHF')
+      console.log('🔌 Socket.IO connecté pour détection UHF, id:', socketRef.current?.id)
+      setIsSocketConnected(true)
+      console.log('✅ State isSocketConnected mis à jour: true')
     })
-    
-    socketRef.current.on('disconnect', () => {
-      console.log('🔌 Socket.IO déconnecté')
+
+    socketRef.current.on('disconnect', (reason) => {
+      console.log('🔌 Socket.IO déconnecté, raison:', reason)
+      setIsSocketConnected(false)
+      console.log('❌ State isSocketConnected mis à jour: false')
+    })
+
+    socketRef.current.on('connect_error', (error) => {
+      console.error('❌ Socket.IO erreur connexion:', error.message)
+      setIsSocketConnected(false)
+      console.log('❌ State isSocketConnected mis à jour: false (erreur)')
     })
     
     // Listen for new UHF tag events
     socketRef.current.on('new_event', (data: { card: string, door: number, reader: string, type: number, time: string }) => {
       console.log('📡 Événement UHF reçu:', data)
-      
-      // Process UHF tag automatically if in idle state
-      if (state === 'idle' && data.card) {
+
+      // Process UHF tag automatically if in idle state (use ref for current state)
+      if (stateRef.current === 'idle' && data.card!='0') {
         console.log('🏷️ Tag UHF détecté:', data.card)
-        handleCardScan(data.card, 'UHF')
+        handleCardScanRef.current?.(data.card, 'UHF')
       }
     })
     
@@ -718,7 +765,7 @@ export default function ParkSmartKiosk() {
         socketRef.current.disconnect()
       }
     }
-  }, [state, handleCardScan])
+  }, [config.kioskAddress])
 
   // Global keyboard listener for kiosk mode
   useEffect(() => {
@@ -740,6 +787,8 @@ export default function ParkSmartKiosk() {
         e.preventDefault()
       }
     }
+
+    
 
     window.addEventListener('keydown', handleGlobalKeyDown)
     return () => window.removeEventListener('keydown', handleGlobalKeyDown)
@@ -784,7 +833,7 @@ export default function ParkSmartKiosk() {
   }
 
   return (
-    <div className="kiosk-screen relative overflow-hidden">
+    <div className={`kiosk-screen relative overflow-hidden ${theme === 'light' ? 'bg-gray-100' : 'bg-gradient-to-br from-blue-900 via-blue-800 to-cyan-900'}`}>
       {/* Animated Toll Background */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Animated road lines */}
@@ -905,36 +954,36 @@ export default function ParkSmartKiosk() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 glass-effect m-3 md:m-6 p-3 md:p-6 rounded-2xl">
+      <header className={`relative z-10 m-3 md:m-6 p-3 md:p-6 rounded-2xl ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center space-x-3 md:space-x-6">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-indigo-400 rounded-xl blur-lg animate-glow" />
-              <div className="relative bg-white p-2 md:p-3 rounded-xl">
+              <div className={`absolute inset-0 rounded-xl blur-lg animate-glow ${theme === 'light' ? 'bg-gradient-to-r from-blue-400 to-indigo-400' : 'bg-gradient-to-r from-cyan-400 to-indigo-400'}`} />
+              <div className={`relative p-2 md:p-3 rounded-xl ${theme === 'light' ? 'bg-gray-100' : 'bg-white'}`}>
                 <img src="/logo.png" alt="SAFER Logo" className="w-8 h-8 md:w-10 md:h-10" />
               </div>
             </div>
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">SAFER</h1>
-              <p className="text-cyan-300 text-xs md:text-sm font-medium">Borne de Télépaiement</p>
+              <h1 className={`text-2xl md:text-3xl font-bold tracking-tight ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>SAFER</h1>
+              <p className={`text-xs md:text-sm font-medium ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>Borne de Télépaiement</p>
             </div>
           </div>
           
           <div className="flex items-center space-x-4 md:space-x-8">
-            <div className="text-white text-right">
+            <div className={`text-right ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
               <div className="text-xl md:text-2xl font-bold font-mono tracking-wider">
                 {format(currentTime, 'HH:mm:ss', { locale: fr })}
               </div>
-              <div className="text-xs md:text-sm text-cyan-300 capitalize">
+              <div className={`text-xs md:text-sm capitalize ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>
                 {format(currentTime, 'EEEE dd MMMM yyyy', { locale: fr })}
               </div>
             </div>
-            
-            <div className="flex items-center space-x-3 bg-white/10 px-4 py-2 rounded-xl backdrop-blur-sm">
+
+            <div className={`flex items-center space-x-3 px-4 py-2 rounded-xl backdrop-blur-sm ${theme === 'light' ? 'bg-gray-100' : 'bg-white/10'}`}>
               {isOnline ? (
                 <>
                   <Wifi className={`w-5 h-5 text-green-400 ${isPinging ? 'animate-pulse' : ''}`} />
-                  <span className="text-white text-sm font-medium">
+                  <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                     {isPinging ? 'Ping...' : 'En ligne'}
                   </span>
                 </>
@@ -946,13 +995,44 @@ export default function ParkSmartKiosk() {
               )}
             </div>
 
+            {/* Socket.IO Status Indicator */}
+            <div className={`flex items-center space-x-3 px-4 py-2 rounded-xl backdrop-blur-sm ${theme === 'light' ? 'bg-gray-100' : 'bg-white/10'}`}>
+              {isSocketConnected ? (
+                <>
+                  <Radio className="w-5 h-5 text-green-400 animate-pulse" />
+                  <span className={`text-sm font-medium ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>UHF</span>
+                </>
+              ) : (
+                <>
+                  <Radio className="w-5 h-5 text-red-400" />
+                  <span className="text-red-300 text-sm font-medium">UHF Off</span>
+                </>
+              )}
+            </div>
+
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className={`flex items-center space-x-2 px-3 py-2 md:px-4 md:py-2 rounded-xl backdrop-blur-sm transition-all ${theme === 'light' ? 'bg-gray-100 hover:bg-gray-200' : 'bg-white/10 hover:bg-white/20'}`}
+              title={theme === 'light' ? 'Mode sombre' : 'Mode clair'}
+            >
+              {theme === 'light' ? (
+                <Moon className="w-4 h-4 md:w-5 md:h-5 text-gray-700" />
+              ) : (
+                <Sun className="w-4 h-4 md:w-5 md:h-5 text-yellow-400" />
+              )}
+              <span className={`text-sm font-medium hidden md:block ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
+                {theme === 'light' ? 'Sombre' : 'Clair'}
+              </span>
+            </button>
+
             <a
               href="/config"
-              className="flex items-center space-x-2 bg-white/10 px-3 py-2 md:px-4 md:py-2 rounded-xl backdrop-blur-sm hover:bg-white/20 transition-all"
+              className={`flex items-center space-x-2 px-3 py-2 md:px-4 md:py-2 rounded-xl backdrop-blur-sm transition-all ${theme === 'light' ? 'bg-gray-100 hover:bg-gray-200' : 'bg-white/10 hover:bg-white/20'}`}
               title="Configuration"
             >
-              <Settings className="w-4 h-4 md:w-5 md:h-5 text-cyan-400" />
-              <span className="text-white text-sm font-medium hidden md:block">Config</span>
+              <Settings className={`w-4 h-4 md:w-5 md:h-5 ${theme === 'light' ? 'text-gray-700' : 'text-cyan-400'}`} />
+              <span className={`text-sm font-medium hidden md:block ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>Config</span>
             </a>
           </div>
         </div>
@@ -964,27 +1044,27 @@ export default function ParkSmartKiosk() {
           {/* État IDLE */}
           {state === 'idle' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+              <div className={`p-4 md:p-8 rounded-3xl text-center ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
                 <div className="relative mb-4 md:mb-8">
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-indigo-400 rounded-full blur-2xl animate-pulse-glow" />
-                  <div className="relative bg-gradient-to-r from-cyan-500 to-indigo-500 p-4 md:p-8 rounded-full inline-flex">
+                  <div className={`absolute inset-0 rounded-full blur-2xl animate-pulse-glow ${theme === 'light' ? 'bg-gradient-to-r from-blue-300 to-indigo-300' : 'bg-gradient-to-r from-cyan-400 to-indigo-400'}`} />
+                  <div className={`relative p-4 md:p-8 rounded-full inline-flex ${theme === 'light' ? 'bg-gradient-to-r from-blue-400 to-indigo-400' : 'bg-gradient-to-r from-cyan-500 to-indigo-500'}`}>
                     <CreditCard className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
-                
-                <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 text-white">
+
+                <h2 className={`text-2xl md:text-4xl font-bold mb-2 md:mb-4 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                   Présentez votre carte
                 </h2>
-                <p className="text-cyan-300 text-base md:text-lg mb-4 md:mb-8">
+                <p className={`text-base md:text-lg mb-4 md:mb-8 ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>
                   Approchez votre carte de la borne
                 </p>
-                
+
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400/20 to-indigo-400/20 rounded-2xl blur-xl" />
+                  <div className={`absolute inset-0 rounded-2xl blur-xl ${theme === 'light' ? 'bg-gradient-to-r from-blue-300/20 to-indigo-300/20' : 'bg-gradient-to-r from-cyan-400/20 to-indigo-400/20'}`} />
                   <input
                     ref={inputRef}
                     type="text"
-                    className="mask-password relative w-full p-4 border-2 border-cyan-400/50 rounded-2xl bg-white/10 text-white placeholder-cyan-300 text-lg font-mono backdrop-blur-sm focus:border-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-400/20 transition-all"
+                    className={`mask-password relative w-full p-4 border-2 rounded-2xl text-lg font-mono backdrop-blur-sm focus:outline-none focus:ring-4 transition-all ${theme === 'light' ? 'border-blue-300/50 bg-gray-50 text-gray-900 placeholder-gray-400 focus:border-blue-400 focus:ring-blue-400/20' : 'border-cyan-400/50 bg-white/10 text-white placeholder-cyan-300 focus:border-cyan-400 focus:ring-cyan-400/20'}`}
                     placeholder="Scannez votre Tag"
                     onChange={handleInputChange}
                     onKeyDown={handleKeyPress}
@@ -992,9 +1072,9 @@ export default function ParkSmartKiosk() {
                     autoFocus
                   />
                 </div>
-                
-                <div className="mt-6 flex items-center justify-center space-x-2 text-cyan-300">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+
+                <div className={`mt-6 flex items-center justify-center space-x-2 ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${theme === 'light' ? 'bg-blue-400' : 'bg-cyan-400'}`} />
                   <span className="text-sm">Prêt à lire</span>
                 </div>
               </div>
@@ -1004,25 +1084,25 @@ export default function ParkSmartKiosk() {
           {/* État SCANNING */}
           {state === 'scanning' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+              <div className={`p-4 md:p-8 rounded-3xl text-center ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
                 <div className="relative mb-4 md:mb-8">
-                  <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-blue-400 rounded-full blur-2xl animate-spin-slow" />
-                  <div className="relative bg-gradient-to-r from-cyan-500 to-blue-500 p-4 md:p-8 rounded-full inline-flex">
+                  <div className={`absolute inset-0 rounded-full blur-2xl animate-spin-slow ${theme === 'light' ? 'bg-gradient-to-r from-blue-300 to-indigo-300' : 'bg-gradient-to-r from-cyan-400 to-blue-400'}`} />
+                  <div className={`relative p-4 md:p-8 rounded-full inline-flex ${theme === 'light' ? 'bg-gradient-to-r from-blue-400 to-indigo-400' : 'bg-gradient-to-r from-cyan-500 to-blue-500'}`}>
                     <Loader2 className="w-20 h-20 md:w-32 md:h-32 text-white animate-spin" />
                   </div>
                 </div>
-                
-                <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 text-white">
+
+                <h2 className={`text-2xl md:text-4xl font-bold mb-2 md:mb-4 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                   Lecture en cours...
                 </h2>
-                <p className="text-cyan-300 text-base md:text-lg">
+                <p className={`text-base md:text-lg ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>
                   Veuillez patienter
                 </p>
-                
+
                 <div className="mt-6 flex justify-center space-x-2">
-                  <div className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-3 h-3 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className={`w-3 h-3 rounded-full animate-bounce ${theme === 'light' ? 'bg-blue-400' : 'bg-cyan-400'}`} style={{ animationDelay: '0ms' }} />
+                  <div className={`w-3 h-3 rounded-full animate-bounce ${theme === 'light' ? 'bg-blue-400' : 'bg-cyan-400'}`} style={{ animationDelay: '150ms' }} />
+                  <div className={`w-3 h-3 rounded-full animate-bounce ${theme === 'light' ? 'bg-blue-400' : 'bg-cyan-400'}`} style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             </div>
@@ -1031,24 +1111,24 @@ export default function ParkSmartKiosk() {
           {/* État PROCESSING */}
           {state === 'processing' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+              <div className={`p-4 md:p-8 rounded-3xl text-center ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
                 <div className="relative mb-4 md:mb-8">
-                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-indigo-500 to-purple-500 p-4 md:p-8 rounded-full inline-flex">
+                  <div className={`absolute inset-0 rounded-full blur-2xl animate-pulse ${theme === 'light' ? 'bg-gradient-to-r from-blue-300 to-indigo-300' : 'bg-gradient-to-r from-indigo-400 to-purple-400'}`} />
+                  <div className={`relative p-4 md:p-8 rounded-full inline-flex ${theme === 'light' ? 'bg-gradient-to-r from-blue-400 to-indigo-400' : 'bg-gradient-to-r from-indigo-500 to-purple-500'}`}>
                     <ShieldCheck className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
-                
-                <h2 className="text-2xl md:text-4xl font-bold mb-2 md:mb-4 text-white">
+
+                <h2 className={`text-2xl md:text-4xl font-bold mb-2 md:mb-4 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                   Vérification...
                 </h2>
-                <p className="text-cyan-300 text-base md:text-lg">
+                <p className={`text-base md:text-lg ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>
                   Validation de votre accès
                 </p>
-                
+
                 <div className="mt-6">
-                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full animate-pulse" style={{ width: '60%', animation: 'pulse 2s infinite' }} />
+                  <div className={`w-full rounded-full h-2 overflow-hidden ${theme === 'light' ? 'bg-gray-200' : 'bg-white/10'}`}>
+                    <div className={`h-full rounded-full animate-pulse ${theme === 'light' ? 'bg-gradient-to-r from-blue-400 to-indigo-400' : 'bg-gradient-to-r from-indigo-400 to-purple-400'}`} style={{ width: '60%', animation: 'pulse 2s infinite' }} />
                   </div>
                 </div>
               </div>
@@ -1058,34 +1138,34 @@ export default function ParkSmartKiosk() {
           {/* État SUCCESS */}
           {state === 'success' && cardData && (
             <div className="animate-slide-up">
-              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+              <div className={`p-4 md:p-8 rounded-3xl text-center ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
                 <div className="relative mb-4 md:mb-8">
-                  <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-green-500 to-emerald-500 p-4 md:p-8 rounded-full inline-flex">
+                  <div className={`absolute inset-0 rounded-full blur-2xl animate-pulse ${theme === 'light' ? 'bg-gradient-to-r from-green-300 to-emerald-300' : 'bg-gradient-to-r from-green-400 to-emerald-400'}`} />
+                  <div className={`relative p-4 md:p-8 rounded-full inline-flex ${theme === 'light' ? 'bg-gradient-to-r from-green-400 to-emerald-400' : 'bg-gradient-to-r from-green-500 to-emerald-500'}`}>
                     <CheckCircle2 className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
-                
-                <h2 className="text-2xl md:text-4xl font-bold mb-4 md:mb-6 text-white">
+
+                <h2 className={`text-2xl md:text-4xl font-bold mb-4 md:mb-6 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                   Accès autorisé
                 </h2>
-                
-                <div className="bg-green-500/20 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-green-400/30">
-                  <p className="text-white font-semibold text-xl mb-3">
+
+                <div className={`backdrop-blur-sm rounded-2xl p-6 mb-6 border ${theme === 'light' ? 'bg-green-50 border-green-200' : 'bg-green-500/20 border-green-400/30'}`}>
+                  <p className={`font-semibold text-xl mb-3 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                     {cardData.card.holder_name}
                   </p>
-                  <div className="space-y-2 text-cyan-300">
-                    <p className="text-sm">
+                  <div className={`space-y-2 text-sm ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>
+                    <p>
                       <span className="font-medium">Carte:</span> {cardData.card.card_number}
                     </p>
-                    <p className="text-sm">
+                    <p>
                       <span className="font-medium">Catégorie:</span> {cardData.card.category}
                     </p>
                   </div>
                 </div>
-                
-                <div className="flex items-center justify-center space-x-2 text-green-300">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+
+                <div className={`flex items-center justify-center space-x-2 ${theme === 'light' ? 'text-green-600' : 'text-green-300'}`}>
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${theme === 'light' ? 'bg-green-500' : 'bg-green-400'}`} />
                   <p className="text-sm">
                     Barrière ouverte • Ticket en cours d'impression
                   </p>
@@ -1097,26 +1177,26 @@ export default function ParkSmartKiosk() {
           {/* État ERROR */}
           {state === 'error' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+              <div className={`p-4 md:p-8 rounded-3xl text-center ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
                 <div className="relative mb-4 md:mb-8">
-                  <div className="absolute inset-0 bg-gradient-to-r from-red-400 to-orange-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-red-500 to-orange-500 p-4 md:p-8 rounded-full inline-flex">
+                  <div className={`absolute inset-0 rounded-full blur-2xl animate-pulse ${theme === 'light' ? 'bg-gradient-to-r from-red-300 to-orange-300' : 'bg-gradient-to-r from-red-400 to-orange-400'}`} />
+                  <div className={`relative p-4 md:p-8 rounded-full inline-flex ${theme === 'light' ? 'bg-gradient-to-r from-red-400 to-orange-400' : 'bg-gradient-to-r from-red-500 to-orange-500'}`}>
                     <XCircle className="w-20 h-20 md:w-32 md:h-32 text-white animate-pulse" />
                   </div>
                 </div>
-                
-                <h2 className="text-2xl md:text-4xl font-bold mb-4 md:mb-6 text-white">
+
+                <h2 className={`text-2xl md:text-4xl font-bold mb-4 md:mb-6 ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                   Accès refusé
                 </h2>
-                
-                <div className="bg-red-500/20 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-red-400/30">
-                  <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-red-400" />
-                  <p className="text-red-300 font-semibold text-lg">
+
+                <div className={`backdrop-blur-sm rounded-2xl p-6 mb-6 border ${theme === 'light' ? 'bg-red-50 border-red-200' : 'bg-red-500/20 border-red-400/30'}`}>
+                  <AlertTriangle className={`w-12 h-12 mx-auto mb-3 ${theme === 'light' ? 'text-red-500' : 'text-red-400'}`} />
+                  <p className={`font-semibold text-lg ${theme === 'light' ? 'text-red-600' : 'text-red-300'}`}>
                     {error}
                   </p>
                 </div>
-                
-                <p className="text-cyan-300">
+
+                <p className={theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}>
                   Veuillez réessayer
                 </p>
               </div>
@@ -1126,15 +1206,15 @@ export default function ParkSmartKiosk() {
           {/* État COOLDOWN */}
           {state === 'cooldown' && (
             <div className="animate-fade-in">
-              <div className="glass-effect p-4 md:p-8 rounded-3xl text-center">
+              <div className={`p-4 md:p-8 rounded-3xl text-center ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
                 <div className="relative mb-4 md:mb-8">
-                  <div className="absolute inset-0 bg-gradient-to-r from-gray-400 to-slate-400 rounded-full blur-2xl animate-pulse" />
-                  <div className="relative bg-gradient-to-r from-gray-500 to-slate-500 p-4 md:p-8 rounded-full inline-flex">
+                  <div className={`absolute inset-0 rounded-full blur-2xl animate-pulse ${theme === 'light' ? 'bg-gradient-to-r from-gray-300 to-slate-300' : 'bg-gradient-to-r from-gray-400 to-slate-400'}`} />
+                  <div className={`relative p-4 md:p-8 rounded-full inline-flex ${theme === 'light' ? 'bg-gradient-to-r from-gray-400 to-slate-400' : 'bg-gradient-to-r from-gray-500 to-slate-500'}`}>
                     <Loader2 className="w-20 h-20 md:w-32 md:h-32 text-white animate-spin" />
                   </div>
                 </div>
-                
-                <p className="text-white text-lg md:text-xl">
+
+                <p className={`text-lg md:text-xl ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>
                   Réinitialisation...
                 </p>
               </div>
@@ -1144,30 +1224,30 @@ export default function ParkSmartKiosk() {
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 glass-effect m-2 md:m-4 p-2 md:p-4 rounded-2xl">
+      <footer className={`relative z-10 m-2 md:m-4 p-2 md:p-4 rounded-2xl ${theme === 'light' ? 'bg-white shadow-lg' : 'glass-effect'}`}>
         <div className="flex flex-col md:flex-row justify-between items-center gap-2">
           <div className="flex items-center space-x-2 md:space-x-6">
-            <div className="bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 p-2 md:p-4 rounded-xl backdrop-blur-sm">
-              <div className="text-cyan-300 text-xs md:text-sm font-medium mb-1">Passages aujourd'hui</div>
-              <div className="text-xl md:text-3xl font-bold text-white">{todayPassages}</div>
+            <div className={`p-2 md:p-4 rounded-xl backdrop-blur-sm ${theme === 'light' ? 'bg-blue-50' : 'bg-gradient-to-r from-cyan-500/20 to-indigo-500/20'}`}>
+              <div className={`text-xs md:text-sm font-medium mb-1 ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>Passages aujourd'hui</div>
+              <div className={`text-xl md:text-3xl font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{todayPassages}</div>
             </div>
-            
+
             {config.siteName && (
-              <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 p-2 md:p-4 rounded-xl backdrop-blur-sm">
-                <div className="text-purple-300 text-xs md:text-sm font-medium mb-1">Site</div>
-                <div className="text-base md:text-lg font-bold text-white">{config.siteName}</div>
+              <div className={`p-2 md:p-4 rounded-xl backdrop-blur-sm ${theme === 'light' ? 'bg-purple-50' : 'bg-gradient-to-r from-purple-500/20 to-pink-500/20'}`}>
+                <div className={`text-xs md:text-sm font-medium mb-1 ${theme === 'light' ? 'text-gray-600' : 'text-purple-300'}`}>Site</div>
+                <div className={`text-base md:text-lg font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{config.siteName}</div>
               </div>
             )}
-            
+
             {config.lane && (
-              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-2 md:p-4 rounded-xl backdrop-blur-sm">
-                <div className="text-green-300 text-xs md:text-sm font-medium mb-1">Voie</div>
-                <div className="text-base md:text-lg font-bold text-white">{config.lane}</div>
+              <div className={`p-2 md:p-4 rounded-xl backdrop-blur-sm ${theme === 'light' ? 'bg-green-50' : 'bg-gradient-to-r from-green-500/20 to-emerald-500/20'}`}>
+                <div className={`text-xs md:text-sm font-medium mb-1 ${theme === 'light' ? 'text-gray-600' : 'text-green-300'}`}>Voie</div>
+                <div className={`text-base md:text-lg font-bold ${theme === 'light' ? 'text-gray-900' : 'text-white'}`}>{config.lane}</div>
               </div>
             )}
           </div>
-          
-          <div className="text-cyan-300 text-xs md:text-sm font-medium">
+
+          <div className={`text-xs md:text-sm font-medium ${theme === 'light' ? 'text-gray-600' : 'text-cyan-300'}`}>
             Gate24 Pro v1.0 • Système de Télépaiement
           </div>
         </div>
