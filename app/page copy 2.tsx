@@ -583,7 +583,7 @@ export default function ParkSmartKiosk() {
       setState('processing')
       
       // Message de traitement sur panneau LED (non bloquant)
-       sendMessagePanneau({ 
+      /* sendMessagePanneau({ 
         color: 5, 
         front: 'small', 
         light: 0, 
@@ -592,7 +592,7 @@ export default function ParkSmartKiosk() {
         row3: "EN COURS", 
         row4: config.siteName, 
         bright: 71 
-      }) 
+      }) */
       
       // Appeler l'API Homintec
       const apiResult = await callHomintecAPI(cardNumber,typeTag)
@@ -617,7 +617,7 @@ export default function ParkSmartKiosk() {
         setState('success')
         
         // Message de succès sur panneau LED (non bloquant)
-        sendMessagePanneau({ 
+       /*  sendMessagePanneau({ 
           color: 2, 
           front: 'small', 
           light: 0, 
@@ -627,24 +627,19 @@ export default function ParkSmartKiosk() {
           row4: "ROUTE", 
           bright: 71 
         })
-
-
-        // Imprimer ticket avec les données API
-        setTimeout(() => printTicket(apiCard), 200)
-        
-         
+         */
         // Actions en parallèle (sans sendMessagePanneau)
         await Promise.all([
           createTransaction(apiCard),
-          
-        setTimeout(() => openBarrier(), 1000)
-
+          openBarrier()
         ])
         
         // Mettre à jour le compteur de passages
         const count = await fetchTodayStats()
         setTodayPassages(count)
         
+        // Imprimer ticket avec les données API
+        setTimeout(() => printTicket(apiCard), 1000)
         
         // Reset après 3 secondes
         setTimeout(() => {
@@ -653,7 +648,7 @@ export default function ParkSmartKiosk() {
             setState('idle')
             setCardData(null)
             // Message de retour à l'accueil (non bloquant)
-           sendMessagePanneau({ 
+           /*  sendMessagePanneau({ 
               color: 7, 
               front: 'small', 
               light: 0, 
@@ -662,7 +657,7 @@ export default function ParkSmartKiosk() {
               row3: config.siteName, 
               row4: 'SAFER', 
               bright: 71 
-            }) 
+            }) */
           }, 2000)
         }, 3000)
       } else {
@@ -671,7 +666,7 @@ export default function ParkSmartKiosk() {
         setState('error')
         
         // Message d'erreur sur panneau LED (non bloquant)
-         sendMessagePanneau({ 
+        /* sendMessagePanneau({ 
           color: 1, 
           front: 'small', 
           light: 0, 
@@ -680,7 +675,7 @@ export default function ParkSmartKiosk() {
           row3: "VEUILLEZ", 
           row4: "REESSAYER", 
           bright: 71 
-        }) 
+        }) */
         
         // Logger l'erreur
         try {
@@ -700,7 +695,7 @@ export default function ParkSmartKiosk() {
           setTimeout(() => {
             setState('idle')
             // Message de retour à l'accueil après erreur (non bloquant)
-             sendMessagePanneau({ 
+            /* sendMessagePanneau({ 
               color: 7, 
               front: 'small', 
               light: 0, 
@@ -709,7 +704,7 @@ export default function ParkSmartKiosk() {
               row3: config.siteName, 
               row4: 'SAFER', 
               bright: 71 
-            }) 
+            }) */
           }, 1000)
         }, 2000)
       }

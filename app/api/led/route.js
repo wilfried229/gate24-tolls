@@ -7,7 +7,7 @@ export async function POST(req) {
 
   // Valeurs par défaut (sécurité)
   const {
-    color =1,
+    color =7,
     front = "small",
     light = 0,
     row1 = "",
