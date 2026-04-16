@@ -601,8 +601,8 @@ export default function ParkSmartKiosk() {
         // Succès API - créer un objet card à partir des données API
         const apiCard: Card = {
           id: cardNumber,
-          card_number: cardNumber,
-          rfid_code: cardNumber,
+          card_number: apiResult.data.targCode,
+          rfid_code: apiResult.data.targCode,
           holder_name: `${apiResult.data.prenom} ${apiResult.data.nom}`,
           category: apiResult.data.targType,
           subscription_type: 'credits',
