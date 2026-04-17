@@ -1,0 +1,110 @@
+Parfait — si la commande suivante est passée sans erreur :
+
+```bash
+docker load -i gate24.tar.gz
+```
+
+👉 ton image est maintenant **importée dans Docker Windows**.
+
+---
+
+## ✅ Étape suivante : vérifier l’image
+
+Tape :
+
+```bash
+docker images
+```
+
+Tu dois voir quelque chose comme :
+
+```
+gate24-tolls-gate24-kiosk   latest
+```
+
+⚠️ Si tu ne vois pas ce nom exact, regarde bien la colonne **REPOSITORY** et **TAG** — Docker peut parfois renommer légèrement.
+
+---
+
+## 🚀 Lancer ton application (kiosk)
+
+### Cas simple :
+
+```bash
+docker run -d -p 3000:3000 gate24-tolls-gate24-kiosk:latest
+```
+
+👉 Ensuite ouvre ton navigateur :
+
+```
+http://localhost:3000
+```
+
+---
+
+## 🔍 Si tu ne connais pas le port
+
+Teste :
+
+```bash
+docker ps
+```
+
+ou regarde ton `Dockerfile` (ligne `EXPOSE`).
+
+---
+
+## ⚙️ Cas réel (kiosk production)
+
+Souvent tu as besoin de plus :
+
+### Avec nom + restart automatique
+
+```bash
+docker run -d \
+  --name kiosk \
+  --restart always \
+  -p 3000:3000 \
+  gate24-tolls-gate24-kiosk:latest
+```
+
+---
+
+## 🧪 Vérifier que ça tourne
+
+```bash
+docker ps
+```
+
+👉 Tu dois voir ton container en **Up**
+
+---
+
+## ❗ Si ça ne marche pas
+
+### Voir les logs :
+
+```bash
+docker logs kiosk
+```
+
+---
+
+## 💡 Bonus (mode kiosque complet)
+
+Si ton objectif est un vrai terminal kiosque (comme péage) :
+
+Tu peux lancer Chrome en mode kiosque sur Windows :
+
+```bash
+start chrome --kiosk http://localhost:3000
+```
+
+---
+
+## 👉 Dis-moi
+
+* ton port (3000 ? 80 ?)
+* ou ton `Dockerfile`
+
+Je peux t’optimiser un **setup kiosque automatique (Docker + Chrome + auto-start)** pour ton système de télépéage 👍

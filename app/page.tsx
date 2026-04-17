@@ -629,16 +629,17 @@ export default function ParkSmartKiosk() {
         })
 
 
-        // Imprimer ticket avec les données API
-        setTimeout(() => printTicket(apiCard), 200)
+
+        if (typeTag === 'CARTE') {
+          // Imprimer ticket avec les données API
+          setTimeout(() => printTicket(apiCard), 200) 
+        }
         
          
         // Actions en parallèle (sans sendMessagePanneau)
         await Promise.all([
           createTransaction(apiCard),
-          
-        setTimeout(() => openBarrier(), 1000)
-
+          setTimeout(() => openBarrier(), 200)
         ])
         
         // Mettre à jour le compteur de passages
