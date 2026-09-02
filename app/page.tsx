@@ -506,7 +506,7 @@ export default function ParkSmartKiosk() {
         </div>
         
         <div class="line">
-          <strong>Date:</strong> ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: fr })}
+          <strong>Date:</strong> ${card.created_at}
         </div>
         
         <div class="divider"></div>
@@ -609,7 +609,7 @@ export default function ParkSmartKiosk() {
           balance: parseInt(apiResult.data.solde),
           is_active: apiResult.data.statutTarg === 'actived',
           expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-          created_at: new Date().toISOString(),
+          created_at: apiResult.data.date,
           updated_at: new Date().toISOString()
         }
         
